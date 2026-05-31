@@ -32,3 +32,11 @@ def test_get_settings_returns_settings() -> None:
     from cms_platform.common.config import Settings, get_settings
 
     assert isinstance(get_settings(), Settings)
+
+
+def test_settings_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CMS_LOG_LEVEL", "WARNING")
+    from cms_platform.common.config import Settings
+
+    s = Settings()
+    assert s.log_level == "WARNING"

@@ -1,9 +1,9 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    subsamples: list[int] = Field(default=[1])
+    subsamples: list[int] = Field(default_factory=lambda: [1])
     db_path: str = Field(default="data/processed/cms.duckdb")
     raw_data_dir: str = Field(default="data/raw")
     manifests_dir: str = Field(default="data/manifests")
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="llama3.2")
     log_level: str = Field(default="INFO")
 
-    model_config = {"env_prefix": "CMS_", "env_file": ".env", "extra": "ignore"}
+    model_config = SettingsConfigDict(env_prefix="CMS_", env_file=".env", extra="ignore")
 
 
 def get_settings() -> Settings:
