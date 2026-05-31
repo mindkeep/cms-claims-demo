@@ -88,11 +88,12 @@ def _load_csv(
         return 0
 
     col_list = ", ".join(f'"{c}"' for c in cols)
+    safe_path = str(csv_path).replace("'", "''")
     conn.execute(f"""
         INSERT INTO {table} ({col_list}, _source_file)
         SELECT {col_list}, '{source}'
         FROM read_csv(
-            '{csv_path}',
+            '{safe_path}',
             all_varchar = true,
             ignore_errors = true,
             header = true
