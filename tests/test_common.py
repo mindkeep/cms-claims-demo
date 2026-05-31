@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from cms_platform.common.config import Settings
+
 
 def test_package_importable() -> None:
     import cms_platform
@@ -71,3 +73,33 @@ def test_configure_logging_does_not_raise() -> None:
 
     configure_logging("DEBUG")
     configure_logging("INFO")
+
+
+# ── db ────────────────────────────────────────────────────────────────────────
+
+def test_get_connection_returns_duckdb(settings: Settings) -> None:
+    import duckdb
+
+    from cms_platform.common.db import get_connection
+
+    conn = get_connection(settings)
+    assert isinstance(conn, duckdb.DuckDBPyConnection)
+    conn.close()
+
+
+def test_get_connection_creates_parent_dirs(tmp_path: Path) -> None:
+    from cms_platform.common.db import get_connection
+
+    nested = Settings(db_path=str(tmp_path / "a" / "b" / "c.duckdb"))
+    conn = get_connection(nested)
+    conn.close()
+    assert (tmp_path / "a" / "b" / "c.duckdb").exists()
+
+
+def test_connection_executes_query(settings: Settings) -> None:
+    from cms_platform.common.db import get_connection
+
+    conn = get_connection(settings)
+    result = conn.execute("SELECT 42 AS answer").fetchone()
+    conn.close()
+    assert result is not None and result[0] == 42
