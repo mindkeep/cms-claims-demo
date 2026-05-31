@@ -234,9 +234,11 @@ def test_dim_date_covers_range(
     build_star_schema(loaded_db, loaded_settings)
 
     result = loaded_db.execute(
-        "SELECT date_key FROM dim_date WHERE date_key IN (20080101, 20101231)"
+        "SELECT date_key FROM dim_date WHERE date_key IN (20070101, 20080101, 20101231, 20111231)"
     ).fetchall()
     keys = {row[0] for row in result}
+    assert 20070101 in keys, "dim_date missing boundary 20070101"
+    assert 20111231 in keys, "dim_date missing boundary 20111231"
     assert 20080101 in keys, "dim_date missing 20080101"
     assert 20101231 in keys, "dim_date missing 20101231"
 

@@ -317,8 +317,6 @@ def build_star_schema(conn: duckdb.DuckDBPyConnection, settings: Settings) -> No
 
     Idempotent — safe to run multiple times; uses NOT EXISTS guards throughout.
     """
-    # V2 note: facts will be partitioned by claim_year + beneficiary_id_hash % N
-    # to keep joins shard-local at scale.
     logger.info("building star schema")
     _run_ddl(conn)
     _populate_dim_date(conn)
