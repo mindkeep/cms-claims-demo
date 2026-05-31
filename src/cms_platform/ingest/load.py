@@ -8,6 +8,7 @@ is skipped on re-runs.
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
@@ -16,6 +17,16 @@ import duckdb
 from cms_platform.common.config import Settings
 from cms_platform.common.db import get_connection
 from cms_platform.ingest.download import file_names_for_sample
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Allowlisted table names — prevents SQL injection via the table parameter
+# ---------------------------------------------------------------------------
+
+_VALID_TABLES: frozenset[str] = frozenset({
+    "raw_beneficiary", "raw_inpatient", "raw_outpatient", "raw_carrier", "raw_pde"
+})
 
 # ---------------------------------------------------------------------------
 # Explicit column lists (no type inference — VARCHAR throughout)
@@ -175,7 +186,7 @@ def _claim_year_from_filename(csv_name: str) -> str:
     match = re.search(r"(2008|2009|2010)", csv_name)
     if match:
         return match.group(1)
-    return ""
+    raise ValueError(f"Cannot determine claim year from filename: {csv_name!r}")
 
 
 def _load_csv(
@@ -190,6 +201,9 @@ def _load_csv(
     Skips the file if ``_source_file`` already contains this path.
     Uses DuckDB's ``read_csv`` with ``all_varchar=true`` — no type inference.
     """
+    if table not in _VALID_TABLES:
+        raise ValueError(f"Unknown table: {table!r}")
+
     source_file = str(path)
 
     # Idempotency check
@@ -197,7 +211,7 @@ def _load_csv(
         f"SELECT COUNT(*) FROM {table} WHERE _source_file = ?",
         [source_file],
     ).fetchone()
-    count: int = row[0] if row is not None else 0
+    count: int = int(row[0]) if row is not None else 0
     if count > 0:
         return
 
@@ -209,11 +223,24 @@ def _load_csv(
         literal_select = ", " + ", ".join(literal_parts)
     literal_select += f", '{source_file}' AS _source_file"
 
+    # ignore_errors=true: SynPUF source data contains malformed rows; silently skip them
     conn.execute(f"""
         INSERT INTO {table}
         SELECT {csv_select}{literal_select}
-        FROM read_csv('{path}', header=true, all_varchar=true, ignore_errors=true)
+        FROM read_csv(
+            '{path}',
+            header=true,
+            all_varchar=true,
+            ignore_errors=true
+        )
     """)
+
+    # Log rows inserted for this file
+    inserted = conn.execute(
+        f"SELECT COUNT(*) FROM {table} WHERE _source_file = ?", [source_file]
+    ).fetchone()
+    inserted_count = int(inserted[0]) if inserted else 0
+    logger.info("loaded file=%s table=%s rows=%d", path.name, table, inserted_count)
 
 
 # ---------------------------------------------------------------------------

@@ -24,7 +24,7 @@ def _make_zip_bytes(csv_name: str, csv_content: str) -> bytes:
     return buf.getvalue()
 
 
-def make_zip_response(zip_name: str) -> MagicMock:
+def _make_zip_response(zip_name: str) -> MagicMock:
     """Return a mock httpx Response whose .content is a valid zip."""
     csv_name = zip_name.replace(".zip", ".csv")
     resp = MagicMock()
@@ -38,7 +38,7 @@ def _patch_httpx(settings: Settings, subsamples: list[int]) -> list[Path]:
     from cms_platform.ingest.download import download_subsamples
 
     mock_http = MagicMock()
-    mock_http.get.side_effect = lambda url, **_kwargs: make_zip_response(url.split("/")[-1])
+    mock_http.get.side_effect = lambda url, **_kwargs: _make_zip_response(url.split("/")[-1])
 
     with patch("cms_platform.ingest.download.httpx.Client") as mock_client_cls:
         mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_http)
@@ -334,3 +334,15 @@ def test_load_source_file_column(loaded_settings: Settings) -> None:
     assert all("Beneficiary" in sf for sf in source_files), (
         f"Expected 'Beneficiary' in all _source_file values, got: {source_files}"
     )
+
+
+# ---------------------------------------------------------------------------
+# download.py — file_names_for_sample range validation
+# ---------------------------------------------------------------------------
+
+def test_file_names_rejects_invalid_sample() -> None:
+    from cms_platform.ingest.download import file_names_for_sample
+    with pytest.raises(ValueError, match="1–20"):
+        file_names_for_sample(0)
+    with pytest.raises(ValueError, match="1–20"):
+        file_names_for_sample(21)
