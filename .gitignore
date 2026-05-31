@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# CMS claims data — raw CSVs, DuckDB file, download manifests
+data/raw/*
+data/processed/*
+data/manifests/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/manifests/.gitkeep
