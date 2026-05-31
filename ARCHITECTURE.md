@@ -151,3 +151,135 @@ Key architectural controls:
 The principle: defer complexity until the pain is real and measurable. V0 runs
 on a laptop. V2 runs on a cluster. The migration path between them is explicit
 and non-destructive.
+
+---
+
+## Observability Stack (V2)
+
+Three-signal observability: metrics, logs, traces.
+
+**Metrics (Prometheus + Grafana):**
+- FastAPI: `prometheus-fastapi-instrumentator` — request count, latency P50/P95/P99, error rate per route
+- DuckDB (V0): custom metrics on query duration, row counts per transform step
+- Kafka (V2): consumer lag per topic partition, producer send rate, topic backlog bytes
+- Key SLOs: API P99 < 500 ms, ingest throughput > 10K claims/sec at V2 full load, consumer lag < 30 s
+
+**Logs (structured JSON → centralized):**
+- All application logs emit structured JSON via Python's stdlib logging with a JSON formatter
+- PHI audit log (`common/audit.py`) is the highest-priority log stream — routed separately from app logs
+- V2: PHI audit log is a dedicated Kafka topic (`cms.audit`) consumed by a SIEM (Splunk / OpenSearch)
+- Log levels: DEBUG in dev, INFO in staging, WARNING in prod. Never log raw PHI values — `desynpuf_id` appears in logs only in its masked form
+
+**Traces (OpenTelemetry):**
+- V1+: instrument FastAPI with `opentelemetry-instrumentation-fastapi`
+- Trace context propagated through DuckDB query span + audit log emission
+- Sampling: 100% for error paths, 1% for healthy paths in production
+- Backend: Jaeger (self-hosted) or Honeycomb (SaaS)
+
+**What V0 provides today:**
+- `logging` at each pipeline step (download, load, transform)
+- Structured audit records in `common/audit.py`
+- Row count logging after each DuckDB insert — visibility into silent data loss risk from `ignore_errors=true`
+
+---
+
+## Multi-Tenancy Design (V2)
+
+**Problem:** V0 is single-tenant (one DuckDB file, one schema). V2 must support multiple payers or research organizations with isolated data.
+
+**Approach: schema-per-tenant isolation**
+
+Each tenant gets a dedicated Postgres schema: `CREATE SCHEMA tenant_{id}`. All tables live under the tenant schema (`tenant_abc.fact_inpatient`, etc.). The API extracts tenant ID from the JWT `org_id` claim; a FastAPI dependency sets `SET search_path = tenant_{id}` at connection time. Kafka topics are namespaced: `cms.{tenant_id}.inpatient`.
+
+**Why schema-per-tenant over row-level security (RLS):**
+
+RLS adds predicate overhead on every query; at V2 analytical query volumes this degrades P99 latency. Schema isolation allows tenant-specific vacuuming, index strategies, and backup scheduling. It also simplifies the audit trail — no risk of a misconfigured RLS policy leaking cross-tenant data. Tradeoff: schema proliferation at >1,000 tenants. Mitigation: pool small tenants into a shared schema + RLS tier; reserve dedicated schemas for enterprise accounts.
+
+**Tenant onboarding steps:**
+1. `CREATE SCHEMA tenant_{id}` + run DDL migrations under the new schema
+2. Provision Kafka topics with topic-level ACLs scoped to the tenant's service account
+3. Issue a JWT signing key with `org_id` claim bound to the tenant
+4. Bootstrap historical data via the V0 batch ingest pipeline (same code, different schema target)
+
+---
+
+## Schema Evolution (V2)
+
+**Problem:** CMS releases new data dictionary versions. ICD-9 → ICD-10 transition. New claim fields. The raw schema must evolve without breaking downstream consumers.
+
+**Strategy: schema registry + migration-as-code**
+
+Kafka messages use Avro schemas registered with a Confluent Schema Registry. Producers register new schema versions; consumers specify compatibility level (`BACKWARD` or `FULL`). SQL DDL migrations are managed by `alembic`; migration files live in `sql/migrations/` and are applied by CI in staging before prod.
+
+**Backward compatibility rule:** new nullable columns only — no column renames or type changes. Breaking changes require a three-step migration: (1) add the new column, (2) dual-write old and new, (3) remove the old column across three separate releases.
+
+**V0 → V2 star schema migration:**
+1. Export DuckDB star schema to Parquet, partitioned by `claim_year`
+2. Load into Postgres via `COPY FROM` or `pg_parquet`
+3. Verify row counts; diff the 5 analytical query results between DuckDB and Postgres
+4. Swap `common/db.py::get_connection()` to return a Postgres connection pool
+
+**V0 data dictionary version management:**
+
+The `_BENE_COLS`, `_INPATIENT_COLS`, etc. column lists in `ingest/load.py` are the schema version pins. When CMS releases a new dictionary version, add a new versioned column list (do not modify existing lists in-place). The loader selects the list based on a version argument. This ensures historical re-runs use the original schema.
+
+---
+
+## Operational Runbooks
+
+**Runbook 1: DuckDB corrupt or missing (V0)**
+
+Source of truth is the raw CSVs in `data/raw/`. Recovery:
+1. Delete `data/processed/cms.duckdb`
+2. Run `make ingest` — download step skips existing zips, load step re-creates DuckDB
+3. RTO: ~20 min for subsample 1; ~6 hours for all 20 subsamples on a standard laptop
+
+**Runbook 2: Kafka consumer lag spike (V2)**
+
+1. Check lag: `kafka-consumer-groups.sh --describe --group analytics-loader`
+2. If lag > 10 min: scale consumer pods — `kubectl scale deployment analytics-loader --replicas=N`
+3. If lag is caused by a bad message (deserialization failure): identify via dead-letter topic `cms.{topic}.dlq`, fix the schema, replay from saved offset
+4. Never reset consumer offsets without recording the reset in the PHI audit log
+
+**Runbook 3: PHI data subject request (V0 + V2)**
+
+1. Receive request with `beneficiary_id` and requestor identity
+2. Query `common/audit.py` logs for all access records for that beneficiary
+3. Export masked record (`phi_read=False`) unless requestor holds `PHI_READ` JWT claim
+4. Log the disclosure event via `log_access(action="disclosure", ...)`
+5. Retain the disclosure log for 7 years per HIPAA §164.530(j)
+
+**Runbook 4: Failed CI pipeline**
+
+1. `quality` job fails → fix ruff/mypy errors locally before re-pushing; never suppress with `# noqa` unless the lint rule is genuinely inapplicable
+2. `test` job fails → run `.venv/bin/pytest tests/ -v` locally; CI test matrix is the contract
+3. `docker` job fails → run `docker build .` locally; check for missing deps in `pyproject.toml`
+
+---
+
+## V2 Cost Model
+
+Concrete sizing for a 20-subsample deployment (~2.3M beneficiaries, ~500M claim records).
+
+**Storage:**
+
+| Layer | Size estimate | Monthly cost (AWS us-east-1, 2025 pricing) |
+|-------|--------------|---------------------------------------------|
+| Raw CSVs (S3 Standard) | ~80 GB (20 samples × ~4 GB) | ~$1.84 |
+| DuckDB file (EBS gp3) | ~15 GB processed | ~$1.20 |
+| Postgres (RDS db.r6g.xlarge, Multi-AZ) | ~50 GB | ~$400 |
+| Kafka (MSK 3-broker m5.large) | 72 h log retention | ~$600 |
+
+**Compute:**
+
+| Service | Sizing | Monthly cost |
+|---------|--------|-------------|
+| FastAPI (ECS Fargate, 2 vCPU / 4 GB × 2 replicas) | 730 hrs | ~$120 |
+| Analytics loader (ECS 2 vCPU × 2 consumers) | 730 hrs | ~$120 |
+| Risk scorer (ECS 4 vCPU / 8 GB × 1 pod) | on-demand bursts | ~$60 |
+
+**Total V2 estimate:** ~$1,300/month for a full 20-subsample production deployment.
+
+**V0 cost:** $0 — runs on a developer laptop.
+
+**Migration trigger:** move to V2 when (a) cohort query latency exceeds 5 seconds for common workloads, or (b) a second concurrent writer is required. At V0 with subsample 1, DuckDB query time is under 1 second. The decision rule is data-driven, not speculative.
