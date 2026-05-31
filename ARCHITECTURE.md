@@ -189,7 +189,9 @@ Three-signal observability: metrics, logs, traces.
 
 **Approach: schema-per-tenant isolation**
 
-Each tenant gets a dedicated Postgres schema: `CREATE SCHEMA tenant_{id}`. All tables live under the tenant schema (`tenant_abc.fact_inpatient`, etc.). The API extracts tenant ID from the JWT `org_id` claim; a FastAPI dependency sets `SET search_path = tenant_{id}` at connection time. Kafka topics are namespaced: `cms.{tenant_id}.inpatient`.
+Each tenant gets a dedicated Postgres schema: `CREATE SCHEMA tenant_{id}`. All tables live under the tenant schema (`tenant_abc.fact_inpatient`, etc.). The API extracts tenant ID from the JWT `org_id` claim; a FastAPI dependency sets `SET search_path = tenant_{id}` at connection time.
+
+Kafka topics extend the single-tenant naming convention from the [Kafka Streaming Design](#kafka-streaming-design-v2) section (`cms.inpatient`, etc.) by prepending a tenant segment: `cms.{tenant_id}.inpatient`. Single-tenant V2 deployments use the short form; multi-tenant deployments use the prefixed form. The consumer group convention follows: `analytics-loader-{tenant_id}`. Topic ACLs enforce that a tenant's service account can only produce/consume its own topic prefix.
 
 **Why schema-per-tenant over row-level security (RLS):**
 
@@ -267,18 +269,18 @@ Concrete sizing for a 20-subsample deployment (~2.3M beneficiaries, ~500M claim 
 |-------|--------------|---------------------------------------------|
 | Raw CSVs (S3 Standard) | ~80 GB (20 samples × ~4 GB) | ~$1.84 |
 | DuckDB file (EBS gp3) | ~15 GB processed | ~$1.20 |
-| Postgres (RDS db.r6g.xlarge, Multi-AZ) | ~50 GB | ~$400 |
-| Kafka (MSK 3-broker m5.large) | 72 h log retention | ~$600 |
+| Postgres (RDS db.r6g.xlarge, Multi-AZ) | ~50 GB | ~$700 |
+| Kafka (MSK 3-broker m5.large) | 72 h log retention | ~$460 |
 
 **Compute:**
 
 | Service | Sizing | Monthly cost |
 |---------|--------|-------------|
-| FastAPI (ECS Fargate, 2 vCPU / 4 GB × 2 replicas) | 730 hrs | ~$120 |
-| Analytics loader (ECS 2 vCPU × 2 consumers) | 730 hrs | ~$120 |
-| Risk scorer (ECS 4 vCPU / 8 GB × 1 pod) | on-demand bursts | ~$60 |
+| FastAPI (ECS Fargate, 2 vCPU / 4 GB × 2 replicas) | 730 hrs | ~$160 |
+| Analytics loader (ECS 2 vCPU × 2 consumers) | 730 hrs | ~$160 |
+| Risk scorer (ECS 4 vCPU / 8 GB × 1 pod) | on-demand bursts | ~$70 |
 
-**Total V2 estimate:** ~$1,300/month for a full 20-subsample production deployment.
+**Total V2 estimate:** ~$1,550/month on-demand (AWS us-east-1, 2025 list pricing). Reserved instances (1-year, no upfront) reduce compute ~30%, bringing the steady-state estimate to ~$1,100/month.
 
 **V0 cost:** $0 — runs on a developer laptop.
 
