@@ -30,16 +30,18 @@ runnable state of the codebase — not a slide.
 
 ## JD Requirement Mapping
 
-| Requirement | Where demonstrated |
-|-------------|-------------------|
-| Large multi-table SQL, window functions, CTEs | `sql/analytics/` + `src/cms_platform/analytics/` (WP3) |
-| AI-driven features → scalable products | `src/cms_platform/scoring/` — risk model + Ollama explainer (WP4) |
-| Sensitive / regulated data handling | `COMPLIANCE.md`, `src/cms_platform/common/audit.py` (WP6) |
-| Distributed systems thinking | [`ARCHITECTURE.md`](ARCHITECTURE.md) — V2 design (WP9) |
-| V0 / V1 / V2 architecture maturity | This README + repo structure throughout |
-| Platform / API ecosystem | `src/cms_platform/api/` — FastAPI serving layer (WP5) |
-| CI/CD pipelines | `.github/workflows/ci.yml` (WP7) |
-| Staff-level engineering judgment | Design decisions documented per WP + ARCHITECTURE.md |
+| Requirement | Where demonstrated | Key evidence |
+|-------------|-------------------|--------------|
+| Large multi-table SQL, window functions, CTEs | `sql/analytics/` + `src/cms_platform/analytics/queries.py` | 5 query types: LAG 30-day readmissions, CASE/FILTER cohort segmentation, PERCENTILE_CONT/NTILE cost distribution, LEFT JOIN anti-join care-gap detection, YoY LAG utilization trends |
+| AI-driven features → scalable products | `scoring/risk_model.py` + `scoring/explainer.py` | sklearn Pipeline (StandardScaler → LogisticRegression; LightGBM swap-in point documented); Ollama care-gap narrative via OpenAI-compat SDK with deterministic stub fallback |
+| Sensitive / regulated data handling | `COMPLIANCE.md`, `common/audit.py`, `common/mask.py` | `log_access()` enforced before every beneficiary-level read; `mask_record()` applies SHA-256 prefix to PHI fields; beneficiary IDs treated as PHI throughout; COMPLIANCE.md documents the full posture |
+| Distributed systems thinking | `ARCHITECTURE.md` + V2 seam annotations in source | Kafka topic-per-claim-type design; `beneficiary_id_hash % N` shard partitioning note in `transforms.py`; HA topology; schema registry strategy; seam annotations mark exact upgrade points |
+| V0 / V1 / V2 architecture maturity | Entire repo + `ARCHITECTURE.md` | Each tier is a real runnable state of the codebase; V2 seam annotations in `db.py`, `load.py`, `transforms.py` mark swap points so migration is a refactor, not a rewrite |
+| Platform / API ecosystem | `src/cms_platform/api/` | 4 FastAPI routes (`/cohorts`, `/beneficiary/{id}/risk`, `/beneficiary/{id}/care-gaps`, `/benchmarks/providers`); PHI masking applied at API boundary; per-request DuckDB connection lifecycle |
+| CI/CD pipelines | `.github/workflows/ci.yml` | 3 jobs in sequence: quality (ruff + mypy) → test (pytest, 76+ tests) → Docker build; failures in earlier jobs block later ones |
+| Staff-level engineering judgment | Design docs in `ARCHITECTURE.md`, `COMPLIANCE.md`, `CLAUDE.md` | YAGNI deferral table (what V0 deliberately omits and why); seam discipline (annotate, don't over-engineer); honest-metrics caveat enforced in code and docs |
+| Data modeling at scale | `sql/schema/ddl.sql`, `schema/transforms.py` | Star schema with idempotent surrogate keys (`ROW_NUMBER() + MAX()` pattern); SCD-lite `dim_beneficiary` (one row per beneficiary per year); `NOT EXISTS` guards throughout |
+| Observability / audit trails | `common/audit.py` | Structured JSON audit record emitted on every PHI access; `AuditRecord` dataclass with `beneficiary_id`, `action`, `accessor`, `timestamp`, and freeform `context`; maps to V2 Kafka-to-SIEM path |
 
 ---
 
