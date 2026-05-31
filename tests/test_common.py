@@ -22,6 +22,13 @@ def test_settings_defaults() -> None:
     assert s.log_level == "INFO"
 
 
+def test_settings_has_synpuf_base_url() -> None:
+    from cms_platform.common.config import Settings
+
+    s = Settings()
+    assert "SynPUFs" in s.cms_synpuf_base_url
+
+
 def test_settings_override() -> None:
     from cms_platform.common.config import Settings
 

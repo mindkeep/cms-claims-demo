@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field(default="http://localhost:11434/v1")
     ollama_model: str = Field(default="llama3.2")
     log_level: str = Field(default="INFO")
+    cms_synpuf_base_url: str = Field(
+        default=(
+            "https://www.cms.gov/Research-Statistics-Data-and-Systems"
+            "/Downloadable-Public-Use-Files/SynPUFs/Downloads"
+        )
+    )
 
     model_config = SettingsConfigDict(env_prefix="CMS_", env_file=".env", extra="ignore")
 
