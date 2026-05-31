@@ -17,11 +17,10 @@ whose boundaries were chosen to make V1→V2 evolution non-destructive:
 - **DuckDB** was selected for V0 because it requires zero infrastructure and is
   fully analytical-SQL-compatible. The `get_connection()` factory in `common/db.py`
   is the single swap point for Postgres/columnar warehouse at V2.
-- **Chunked CSV ingestion** in `ingest/load.py` mirrors the consumer model of a
-  Kafka topic — the swap to streaming is a replacement of one module, not a
-  rewrite of the analytical layer.
-- **Subsample-list config** (`Settings.subsamples`) exists because V2 shards by
-  `beneficiary_id_hash % N`. The config boundary is the sharding boundary.
+- **Synthea CSV download** in `ingest/download.py` is the V0 data source —
+  five CSV files (patients, encounters, conditions, medications, providers)
+  loaded into raw DuckDB tables with all-VARCHAR columns. The swap to streaming
+  is a replacement of one module, not a rewrite of the analytical layer.
 - **Star schema** is designed for partition pruning by `claim_year` and
   `beneficiary_id_hash` — the same partition keys used at V2.
 
@@ -47,13 +46,15 @@ star schema DDL translates directly; partition keys (`claim_year`,
 
 | Tier | Mechanism | Reason |
 |------|-----------|--------|
-| V0 | Batch CSV download + chunked load | Reproducible, testable, no infra |
+| V0 | Synthea CSV download + raw table load | Reproducible, testable, no infra |
 | V1 | Batch + scheduled refresh | Adds daily/weekly pipeline trigger |
 | V2 | Kafka streaming topics per claim type | Near-real-time ingestion, replay, backpressure |
 
-**Migration path (V0→V2):** The chunked reader in `ingest/load.py` is replaced
-by a Kafka consumer. One topic per claim type (inpatient, outpatient, carrier,
-PDE, beneficiary). Consumer groups allow parallel ingestion across subsamples.
+**Migration path (V0→V2):** The Synthea CSV downloader in `ingest/download.py`
+is replaced by a Blue Button 2.0 FHIR R4 consumer. The raw table contract
+(`raw_patients`, `raw_encounters`, etc.) stays identical — different producer,
+same schema. One topic per FHIR resource type (Patient, Encounter, Condition,
+MedicationRequest, Practitioner). Consumer groups allow parallel ingestion.
 Schema registry enforces the same explicit-typing discipline as V0.
 
 ### API / Serving
@@ -98,6 +99,10 @@ fact tables), `risk-scorer` (triggers incremental re-scoring), `audit-logger`
 **Schema registry:** Avro schemas enforcing the same typed columns as the V0
 data dictionary. No schema drift — any producer publishing an unknown field
 is rejected.
+
+**FHIR compatibility:** Topic schemas use FHIR R4 resource types (`Patient`,
+`Encounter`, `Condition`) as the event envelope, so the V2 Kafka pipeline is
+compatible with real Blue Button 2.0 data without field re-mapping.
 
 **Replay / backfill:** The V0 batch CSV load becomes the Kafka producer for
 historical data. Same schema, different producer implementation.
@@ -168,7 +173,7 @@ Three-signal observability: metrics, logs, traces.
 - All application logs emit structured JSON via Python's stdlib logging with a JSON formatter
 - PHI audit log (`common/audit.py`) is the highest-priority log stream — routed separately from app logs
 - V2: PHI audit log is a dedicated Kafka topic (`cms.audit`) consumed by a SIEM (Splunk / OpenSearch)
-- Log levels: DEBUG in dev, INFO in staging, WARNING in prod. Never log raw PHI values — `desynpuf_id` appears in logs only in its masked form
+- Log levels: DEBUG in dev, INFO in staging, WARNING in prod. Never log raw PHI values — `patient_id` appears in logs only in its masked form
 
 **Traces (OpenTelemetry):**
 - V1+: instrument FastAPI with `opentelemetry-instrumentation-fastapi`
@@ -207,7 +212,7 @@ RLS adds predicate overhead on every query; at V2 analytical query volumes this 
 
 ## Schema Evolution (V2)
 
-**Problem:** CMS releases new data dictionary versions. ICD-9 → ICD-10 transition. New claim fields. The raw schema must evolve without breaking downstream consumers.
+**Problem:** Synthea releases new data dictionary versions. SNOMED-CT code set updates. New CSV fields. The raw schema must evolve without breaking downstream consumers.
 
 **Strategy: schema registry + migration-as-code**
 
@@ -223,7 +228,7 @@ Kafka messages use Avro schemas registered with a Confluent Schema Registry. Pro
 
 **V0 data dictionary version management:**
 
-The `_BENE_COLS`, `_INPATIENT_COLS`, etc. column lists in `ingest/load.py` are the schema version pins. When CMS releases a new dictionary version, add a new versioned column list (do not modify existing lists in-place). The loader selects the list based on a version argument. This ensures historical re-runs use the original schema.
+The `_PATIENT_COLS`, `_ENCOUNTER_COLS`, etc. column lists in `ingest/load.py` are the schema version pins. When Synthea releases a new CSV layout, add a new versioned column list (do not modify existing lists in-place). The loader selects the list based on a version argument. This ensures historical re-runs use the original schema.
 
 ---
 
@@ -234,7 +239,7 @@ The `_BENE_COLS`, `_INPATIENT_COLS`, etc. column lists in `ingest/load.py` are t
 Source of truth is the raw CSVs in `data/raw/`. Recovery:
 1. Delete `data/processed/cms.duckdb`
 2. Run `make ingest` — download step skips existing zips, load step re-creates DuckDB
-3. RTO: ~20 min for subsample 1; ~6 hours for all 20 subsamples on a standard laptop
+3. RTO: ~20 min for a small Synthea sample; ~6 hours for a full 2.3M-patient Synthea run on a standard laptop
 
 **Runbook 2: Kafka consumer lag spike (V2)**
 

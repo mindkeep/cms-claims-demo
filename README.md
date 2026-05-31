@@ -1,92 +1,134 @@
-# CMS Claims Analytics Platform
+# Synthea Claims Analytics Platform
 
-A portfolio/demo project built on the
-[CMS DE-SynPUF](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf)
-synthetic Medicare claims dataset (2008–2010). Demonstrates V0→V2 architecture
-maturity for a Principal Software Engineer role: large multi-table SQL, AI-driven
-features, regulated-data discipline, and distributed-systems thinking built in
-from day one.
+A portfolio project demonstrating a production-grade clinical analytics stack
+built on [Synthea](https://synthea.mitre.org) synthetic patient data. Shows
+a V0 → V2 architecture maturity story: from a local DuckDB pipeline to a
+distributed, FHIR-native platform.
+
+> **For non-experts:** Synthea is an open-source tool from MITRE that generates
+> realistic synthetic (fake) patient records. No real patient data is ever used
+> here — but we treat it *as if* it were real, to demonstrate regulated-data
+> discipline.
 
 ---
 
-## Architecture Overview
+## What this project answers
 
-The repo is structured as an explicit V0→V2 maturity story. Each tier is a real,
-runnable state of the codebase — not a slide.
+Five analytical questions every healthcare platform needs:
 
-| Tier | What it is | Status |
-|------|------------|--------|
-| **V0** | Batch analytics core: CSV → DuckDB star schema + SQL query library | In progress |
-| **V1** | Served platform: FastAPI over analytics + AI-driven risk scoring + Ollama care-gap explainer | Planned |
-| **V2** | Scale & resiliency: Postgres migration path, Kafka streaming ingestion, HA, multi-tenancy | Designed |
+| Query | File | Technique |
+|-------|------|-----------|
+| 30-day readmission rate | `sql/analytics/readmission_30day.sql` | LAG window function |
+| Chronic-condition cohort sizes | `sql/analytics/cohort_segmentation.sql` | Conditional aggregation |
+| Encounter cost distribution | `sql/analytics/cost_benchmarking.sql` | PERCENTILE_CONT, NTILE |
+| Care-gap detection (diabetic patients) | `sql/analytics/care_gap_detection.sql` | Anti-join |
+| Utilisation year-over-year | `sql/analytics/utilization_trends.sql` | LAG + partition |
 
-> **Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first.** The V2 design drove every V0
-> abstraction decision. DuckDB was chosen knowing the swap point. Chunked ingestion
-> was built with the Kafka seam annotated. The subsample-list config exists because
-> V2 sharding is by beneficiary hash. V0 is not a prototype; it is a deliberately
-> simple foundation with a clear migration path.
+---
+
+## Architecture overview
+
+```
+Synthea CSVs          Raw tables         Star schema           API / scoring
+(patients,      →    (all VARCHAR,   →  (typed dims +    →   FastAPI +
+ encounters,          no inference)      fact tables)          risk model +
+ conditions, …)                                               Ollama explainer
+```
+
+Each layer has a documented swap point for V2:
+- **Raw → Star**: replace DuckDB with Postgres (one function in `common/db.py`)
+- **CSV ingest**: replace with Blue Button 2.0 FHIR API (one module in `ingest/`)
+- **Risk model**: replace logistic regression with LightGBM (one file in `scoring/`)
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full V2 design.
+
+---
+
+## Data source: Synthea
+
+> **Learn more:** [synthea.mitre.org](https://synthea.mitre.org) |
+> [Synthea GitHub](https://github.com/synthetichealth/synthea) |
+> [CSV data dictionary](https://github.com/synthetichealth/synthea/wiki/CSV-File-Data-Dictionary)
+
+Synthea generates five CSV files we ingest:
+
+| File | Contents |
+|------|----------|
+| `patients.csv` | Demographics — age, gender, race, cost totals |
+| `encounters.csv` | Every clinical visit (inpatient, ambulatory, ED, etc.) with costs |
+| `conditions.csv` | Diagnoses with **SNOMED-CT** codes |
+| `medications.csv` | Prescription events with **RxNorm** codes |
+| `providers.csv` | Clinician details |
+
+**On coding systems:** Synthea uses SNOMED-CT (not ICD-9 or ICD-10) for diagnoses.
+SNOMED-CT is the modern international clinical terminology standard. ICD-10 is still
+used for US billing — real pipelines map SNOMED → ICD-10 at claim submission time.
+> **Learn more:** [SNOMED-CT](https://www.snomed.org) | [ICD-10](https://www.who.int/standards/classifications/classification-of-diseases)
+
+---
+
+## Quick start
+
+```bash
+uv sync                  # install dependencies
+make ingest              # download Synthea sample data + load into DuckDB
+make test                # run test suite
+make serve               # start API at http://localhost:8000
+```
+
+Try the API:
+```bash
+curl http://localhost:8000/cohorts
+curl http://localhost:8000/benchmarks/encounters
+curl "http://localhost:8000/patients/<patient-uuid>/risk"
+```
+
+---
+
+## Star schema
+
+```
+dim_date ──────────────────────────────────────┐
+dim_patient ──┬── fact_encounter ──── dim_provider
+              ├── fact_condition
+              └── fact_medication
+dim_condition_code (SNOMED-CT dictionary)
+```
+
+> **What is a star schema?** A dimensional model with one central fact table per
+> subject area, surrounded by denormalized dimension tables. Fast for analytics
+> because most queries join one fact to a few dims without deep normalisation.
+> [Learn more](https://en.wikipedia.org/wiki/Star_schema)
 
 ---
 
 ## JD Requirement Mapping
 
 | Requirement | Where demonstrated | Key evidence |
-|-------------|-------------------|--------------|
-| Large multi-table SQL, window functions, CTEs | `sql/analytics/` + `src/cms_platform/analytics/queries.py` | 5 query types: LAG 30-day readmissions, CASE/FILTER cohort segmentation, PERCENTILE_CONT/NTILE cost distribution, LEFT JOIN anti-join care-gap detection, YoY LAG utilization trends |
-| AI-driven features → scalable products | `scoring/risk_model.py` + `scoring/explainer.py` | sklearn Pipeline (StandardScaler → LogisticRegression; LightGBM swap-in point documented); Ollama care-gap narrative via OpenAI-compat SDK with deterministic stub fallback |
-| Sensitive / regulated data handling | `COMPLIANCE.md`, `common/audit.py`, `common/mask.py` | `log_access()` enforced before every beneficiary-level read; `mask_record()` applies SHA-256 prefix to PHI fields; beneficiary IDs treated as PHI throughout; COMPLIANCE.md documents the full posture |
-| Distributed systems thinking | `ARCHITECTURE.md` + V2 seam annotations in source | Kafka topic-per-claim-type design; `beneficiary_id_hash % N` shard partitioning note in `transforms.py`; HA topology; schema registry strategy; seam annotations mark exact upgrade points |
-| V0 / V1 / V2 architecture maturity | Entire repo + `ARCHITECTURE.md` | Each tier is a real runnable state of the codebase; V2 seam annotations in `db.py`, `load.py`, `transforms.py` mark swap points so migration is a refactor, not a rewrite |
-| Platform / API ecosystem | `src/cms_platform/api/` | 4 FastAPI routes (`/cohorts`, `/beneficiary/{id}/risk`, `/beneficiary/{id}/care-gaps`, `/benchmarks/providers`); PHI masking applied at API boundary; per-request DuckDB connection lifecycle |
-| CI/CD pipelines | `.github/workflows/ci.yml` | 3 jobs in sequence: quality (ruff + mypy) → test (pytest, 76+ tests) → Docker build; failures in earlier jobs block later ones |
-| Staff-level engineering judgment | Design docs in `ARCHITECTURE.md`, `COMPLIANCE.md`, `CLAUDE.md` | YAGNI deferral table (what V0 deliberately omits and why); seam discipline (annotate, don't over-engineer); honest-metrics caveat enforced in code and docs |
-| Data modeling at scale | `sql/schema/ddl.sql`, `schema/transforms.py` | Star schema with idempotent surrogate keys (`ROW_NUMBER() + MAX()` pattern); SCD-lite `dim_beneficiary` (one row per beneficiary per year); `NOT EXISTS` guards throughout |
-| Observability / audit trails | `common/audit.py` | Structured JSON audit record emitted on every PHI access; `AuditRecord` dataclass with `beneficiary_id`, `action`, `accessor`, `timestamp`, and freeform `context`; maps to V2 Kafka-to-SIEM path |
+|-------------|-------------------|-------------|
+| Large multi-table SQL, window functions, CTEs | `sql/analytics/` | LAG readmissions, PERCENTILE_CONT cost, anti-join care-gap, YoY LAG trends |
+| AI-driven features | `scoring/risk_model.py` + `scoring/explainer.py` | sklearn Pipeline + Ollama care-gap narrative; honest-metrics caveat |
+| Regulated data handling | `COMPLIANCE.md`, `common/audit.py`, `common/mask.py` | `log_access()` before every patient read; SHA-256 field masking |
+| Distributed systems thinking | `ARCHITECTURE.md` | Kafka topic design, shard partitioning, FHIR migration path |
+| V0 / V1 / V2 maturity | Entire repo | Each tier is runnable; swap-point annotations mark migration boundaries |
+| Platform / API | `src/cms_platform/api/` | 4 routes; PHI masking at boundary; per-request DuckDB connection |
+| CI/CD | `.github/workflows/ci.yml` | 3 jobs: quality (ruff+mypy) → test → Docker |
+| Data modelling | `sql/schema/ddl.sql`, `schema/transforms.py` | Star schema with idempotent surrogate keys |
+| Observability / audit | `common/audit.py` | Structured JSON audit log on every patient read |
 
 ---
 
-## Quick Start
+## Real data migration path
 
-```bash
-# Install dependencies
-uv sync
+This project uses Synthea because it requires no credentials and no data use
+agreement. To use real Medicare data:
 
-# Download subsample 1 and load into DuckDB (~few hundred MB)
-make ingest
+1. **CMS Blue Button 2.0** — OAuth2 FHIR R4 API for individual Medicare
+   beneficiaries. Register an app at [bluebutton.cms.gov](https://bluebutton.cms.gov).
+   The `ingest/download.py` TODO comment marks the swap point.
 
-# Run tests
-make test
+2. **CMS Limited Data Set (LDS)** — Real claims data for research, with a
+   Data Use Agreement. Apply via [ResDAC](https://resdac.org).
 
-# Boot the API server at http://localhost:8000
-make serve
-```
-
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full system design, and
-[`CLAUDE.md`](CLAUDE.md) for contributor/agent conventions.
-
----
-
-## Work Package Map
-
-| WP | Module | What it builds |
-|----|--------|---------------|
-| WP1 | `ingest/` | Download CMS CSVs, stream into DuckDB raw tables with explicit typed schemas |
-| WP2 | `schema/` | Star schema transforms: dim_beneficiary, dim_provider, dim_diagnosis, fact tables |
-| WP3 | `analytics/` | SQL library: 30-day readmissions, cohort segmentation, cost benchmarking, care gaps, utilization trends |
-| WP4 | `scoring/` | LightGBM risk stratification + Ollama care-gap explainer (offline stub default) |
-| WP5 | `api/` | FastAPI: `/cohorts`, `/beneficiary/{id}/risk`, `/beneficiary/{id}/care-gaps`, `/benchmarks/providers` |
-| WP6 | `common/audit.py` | PHI audit logging, field masking, compliance posture (`COMPLIANCE.md`) |
-| WP7 | `.github/workflows/` | CI: lint + typecheck + test + Docker build |
-| WP8 | `notebooks/story.ipynb` | End-to-end narrative: ingest → schema → queries → scores → "how this scales" |
-| WP9 | `ARCHITECTURE.md` | V2 distributed-systems design: Postgres migration, Kafka, HA, security |
-
----
-
-## Dataset
-
-**CMS DE-SynPUF 2008–2010.** Fully synthetic Medicare claims data (~2.3M
-beneficiaries across 20 subsamples; default dev target is subsample 1, ~5% of 5%).
-Safe to handle publicly, but the project models PHI discipline throughout —
-beneficiary IDs are treated as sensitive, every access is audit-logged, and
-field-level masking is configurable. This is intentional: the engineering
-demonstration is the point, not the data.
+> **Learn more about Medicare:** [medicare.gov](https://www.medicare.gov) |
+> [CMS data programs](https://www.cms.gov/data-research)
