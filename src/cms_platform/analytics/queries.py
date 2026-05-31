@@ -1,3 +1,11 @@
+"""Execute the five analytical SQL queries against the star schema.
+
+Each function reads its SQL from sql/analytics/, executes against the provided
+DuckDB connection, and returns a Polars DataFrame.
+
+TODO(future-perf): cache results with a TTL when the underlying data is static
+    (e.g., historical synthea data that won't change between API calls).
+"""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -11,7 +19,7 @@ _SQL_DIR = Path(__file__).parent.parent.parent.parent / "sql" / "analytics"
 
 
 def _to_polars(result: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Convert a DuckDB result to a Polars DataFrame without requiring pyarrow."""
+    """Convert a DuckDB result to Polars without requiring pyarrow."""
     rows = result.fetchall()
     desc = result.description
     if not desc:
@@ -21,54 +29,37 @@ def _to_polars(result: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         return pl.DataFrame({col: [] for col in cols})
 
     def _coerce(v: Any) -> Any:
-        if isinstance(v, Decimal):
-            return float(v)
-        return v
+        return float(v) if isinstance(v, Decimal) else v
 
-    data = {col: [_coerce(row[i]) for row in rows] for i, col in enumerate(cols)}
-    return pl.DataFrame(data)
+    return pl.DataFrame(
+        {col: [_coerce(row[i]) for row in rows] for i, col in enumerate(cols)}
+    )
 
 
 def _run(conn: duckdb.DuckDBPyConnection, sql_file: str) -> pl.DataFrame:
-    sql = (_SQL_DIR / sql_file).read_text()
-    return _to_polars(conn.execute(sql))
+    return _to_polars(conn.execute((_SQL_DIR / sql_file).read_text()))
 
 
 def readmission_30day(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """30-day readmission rate by year.
-
-    SQL technique: LAG window function + self-join date range predicate.
-    """
+    """30-day inpatient readmission rate by year."""
     return _run(conn, "readmission_30day.sql")
 
 
 def cohort_segmentation(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Chronic-condition cohort sizes and comorbidity burden by year.
-
-    SQL technique: CASE/FILTER aggregation, comorbidity count.
-    """
+    """Chronic-condition cohort counts by year of first encounter."""
     return _run(conn, "cohort_segmentation.sql")
 
 
 def cost_benchmarking(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Per-beneficiary cost distribution with percentiles and quartile ranking.
-
-    SQL technique: PERCENTILE_CONT, NTILE, RANK window functions.
-    """
+    """Encounter cost distribution (avg, P50, P90, P99) by year."""
     return _run(conn, "cost_benchmarking.sql")
 
 
 def care_gap_detection(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Diabetic beneficiaries with no carrier claim (care gap) by year.
-
-    SQL technique: LEFT JOIN anti-join pattern.
-    """
+    """Diabetic patients without an encounter in the past 12 months."""
     return _run(conn, "care_gap_detection.sql")
 
 
 def utilization_trends(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Year-over-year claim volume and cost trends with LAG-based deltas.
-
-    SQL technique: LAG window function over year partitions.
-    """
+    """Year-over-year encounter volume and cost deltas by encounter class."""
     return _run(conn, "utilization_trends.sql")
