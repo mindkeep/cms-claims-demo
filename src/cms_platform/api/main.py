@@ -6,7 +6,7 @@ from cms_platform.api.routes import benchmarks, cohorts, patient
 from cms_platform.common.config import get_settings
 from cms_platform.common.logging import configure_logging
 
-app = FastAPI(title="CMS Claims Platform", version="0.1.0")
+app = FastAPI(title="Synthea Claims Platform", version="0.1.0")
 
 app.include_router(cohorts.router)
 app.include_router(patient.router)

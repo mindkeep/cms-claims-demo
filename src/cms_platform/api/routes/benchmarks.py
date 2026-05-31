@@ -11,10 +11,9 @@ from cms_platform.api.deps import get_db_conn
 router = APIRouter(prefix="/benchmarks", tags=["benchmarks"])
 
 
-@router.get("/providers")
-def get_provider_benchmarks(
+@router.get("/encounters")
+def get_encounter_benchmarks(
     conn: duckdb.DuckDBPyConnection = Depends(get_db_conn),  # noqa: B008
 ) -> list[dict[str, Any]]:
-    """Cost distribution benchmarks across years. Aggregate data — no PHI."""
-    df = cost_benchmarking(conn)
-    return df.to_dicts()
+    """Encounter cost distribution benchmarks by year. Aggregate data — no PHI."""
+    return cost_benchmarking(conn).to_dicts()
