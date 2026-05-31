@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import duckdb
 import polars as pl
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from cms_platform.api.deps import get_db_conn, get_settings_dep
 from cms_platform.common.audit import log_access
 from cms_platform.common.config import Settings
+from cms_platform.common.mask import mask_record
 from cms_platform.scoring.explainer import explain_care_gaps
 from cms_platform.scoring.risk_model import RISK_FEATURES, RiskModel, predict_risk, train_risk_model
 
@@ -70,6 +71,7 @@ def _train_model_on_all(
 @router.get("/{beneficiary_id}/risk")
 def get_risk(
     beneficiary_id: str,
+    phi_read: bool = Query(default=False),  # noqa: B008
     conn: duckdb.DuckDBPyConnection = Depends(get_db_conn),  # noqa: B008
     settings: Settings = Depends(get_settings_dep),  # noqa: B008
 ) -> dict[str, object]:
@@ -81,17 +83,19 @@ def get_risk(
     features, claim_year = features_result
     model = _train_model_on_all(conn, settings)
     scores = predict_risk(model, features)
-    return {
+    response: dict[str, object] = {
         "beneficiary_id": beneficiary_id,
         "risk_score": float(scores[0]),
         "claim_year": claim_year,
         "model_version": "logistic_regression_v1",
     }
+    return mask_record(response, phi_read=phi_read)
 
 
 @router.get("/{beneficiary_id}/care-gaps")
 def get_care_gaps(
     beneficiary_id: str,
+    phi_read: bool = Query(default=False),  # noqa: B008
     conn: duckdb.DuckDBPyConnection = Depends(get_db_conn),  # noqa: B008
     settings: Settings = Depends(get_settings_dep),  # noqa: B008
 ) -> dict[str, object]:
@@ -117,9 +121,10 @@ def get_care_gaps(
             gaps.append("Annual diabetes management visit (no carrier claims found)")
 
     explanation = explain_care_gaps(beneficiary_id, gaps, settings)
-    return {
+    response: dict[str, object] = {
         "beneficiary_id": explanation.beneficiary_id,
         "gaps": explanation.gaps,
         "summary": explanation.summary,
         "model_used": explanation.model_used,
     }
+    return mask_record(response, phi_read=phi_read)

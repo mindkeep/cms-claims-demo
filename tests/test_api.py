@@ -100,8 +100,8 @@ def test_beneficiary_risk_not_found(client: TestClient) -> None:
 
 
 def test_beneficiary_risk_found(client: TestClient) -> None:
-    # B001 is the beneficiary written by _write_sample_files
-    resp = client.get("/beneficiary/B001/risk")
+    # B001 is the beneficiary written by _write_sample_files; use phi_read to get raw ID
+    resp = client.get("/beneficiary/B001/risk?phi_read=true")
     assert resp.status_code == 200
     data = resp.json()
     assert data["beneficiary_id"] == "B001"
@@ -121,14 +121,35 @@ def test_beneficiary_care_gaps_not_found(client: TestClient) -> None:
 
 
 def test_beneficiary_care_gaps_found(client: TestClient) -> None:
-    # B001 has sp_diabetes='2' → not diabetic → gaps will be []
-    resp = client.get("/beneficiary/B001/care-gaps")
+    # B001 has sp_diabetes='2' → not diabetic → gaps will be []; use phi_read for raw ID
+    resp = client.get("/beneficiary/B001/care-gaps?phi_read=true")
     assert resp.status_code == 200
     data = resp.json()
     assert data["beneficiary_id"] == "B001"
     assert isinstance(data["gaps"], list)
     assert "summary" in data
     assert "model_used" in data
+
+
+# ---------------------------------------------------------------------------
+# /beneficiary/{id}/risk — PHI masking (WP6)
+# ---------------------------------------------------------------------------
+
+
+def test_beneficiary_risk_masked_by_default(client: TestClient) -> None:
+    resp = client.get("/beneficiary/B001/risk")
+    assert resp.status_code == 200
+    data = resp.json()
+    # beneficiary_id should be masked (not the raw B001)
+    assert data["beneficiary_id"] != "B001"
+    assert data["beneficiary_id"].startswith("****")
+
+
+def test_beneficiary_risk_unmasked_with_phi_read(client: TestClient) -> None:
+    resp = client.get("/beneficiary/B001/risk?phi_read=true")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["beneficiary_id"] == "B001"
 
 
 # ---------------------------------------------------------------------------
