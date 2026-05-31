@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from cms_platform.api.routes import benchmarks, patient, cohorts
+from cms_platform.api.routes import benchmarks, cohorts, patient
 from cms_platform.common.config import get_settings
 from cms_platform.common.logging import configure_logging
 
