@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_ingest_download_importable() -> None:
     from cms_platform.ingest.download import download_subsamples, main
 
@@ -43,7 +40,7 @@ def test_scoring_risk_model_importable() -> None:
 
 
 def test_scoring_explainer_importable() -> None:
-    from cms_platform.scoring.explainer import CareGapExplanation, explain_care_gaps
+    from cms_platform.scoring.explainer import explain_care_gaps
 
     assert callable(explain_care_gaps)
 

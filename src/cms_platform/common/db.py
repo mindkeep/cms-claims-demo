@@ -1,5 +1,6 @@
-import duckdb
 from pathlib import Path
+
+import duckdb
 
 from cms_platform.common.config import Settings
 
