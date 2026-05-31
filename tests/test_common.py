@@ -103,3 +103,34 @@ def test_connection_executes_query(settings: Settings) -> None:
     result = conn.execute("SELECT 42 AS answer").fetchone()
     conn.close()
     assert result is not None and result[0] == 42
+
+
+# ── audit ─────────────────────────────────────────────────────────────────────
+
+def test_log_access_returns_audit_record() -> None:
+    from cms_platform.common.audit import AuditRecord, log_access
+
+    record = log_access("BENE_001", "read", "api/beneficiary")
+    assert isinstance(record, AuditRecord)
+    assert record.beneficiary_id == "BENE_001"
+    assert record.action == "read"
+    assert record.accessor == "api/beneficiary"
+    assert record.context == {}
+
+
+def test_log_access_captures_context() -> None:
+    from cms_platform.common.audit import log_access
+
+    record = log_access("BENE_002", "read", "api/risk", endpoint="/risk", ip="127.0.0.1")
+    assert record.context["endpoint"] == "/risk"
+    assert record.context["ip"] == "127.0.0.1"
+
+
+def test_log_access_emits_log_record(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    from cms_platform.common.audit import log_access
+
+    with caplog.at_level(logging.INFO, logger="cms_platform.common.audit"):
+        log_access("BENE_003", "read", "test_caller")
+    assert any("BENE_003" in r.message for r in caplog.records)
