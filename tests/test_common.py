@@ -40,3 +40,34 @@ def test_settings_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
     s = Settings()
     assert s.log_level == "WARNING"
+
+
+# ── logging ───────────────────────────────────────────────────────────────────
+
+def test_json_formatter_produces_valid_json() -> None:
+    import json
+    import logging as stdlib_logging
+
+    from cms_platform.common.logging import JSONFormatter
+
+    formatter = JSONFormatter()
+    record = stdlib_logging.LogRecord(
+        name="test",
+        level=stdlib_logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="hello world",
+        args=(),
+        exc_info=None,
+    )
+    parsed = json.loads(formatter.format(record))
+    assert parsed["message"] == "hello world"
+    assert parsed["level"] == "INFO"
+    assert "timestamp" in parsed
+
+
+def test_configure_logging_does_not_raise() -> None:
+    from cms_platform.common.logging import configure_logging
+
+    configure_logging("DEBUG")
+    configure_logging("INFO")
