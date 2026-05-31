@@ -48,8 +48,10 @@ def _train_model_on_all(
         raise HTTPException(status_code=503, detail="No beneficiary data loaded")
 
     all_data = pl.DataFrame(
-        {col: [float(r[i]) if r[i] is not None else 0.0 for r in rows]
-         for i, col in enumerate(RISK_FEATURES)}
+        {
+            col: [float(r[i]) if r[i] is not None else 0.0 for r in rows]
+            for i, col in enumerate(RISK_FEATURES)
+        }
     )
     costs = [float(r[-1]) if r[-1] is not None else 0.0 for r in rows]
     n = len(costs)

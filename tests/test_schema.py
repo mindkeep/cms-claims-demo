@@ -21,9 +21,7 @@ _BENE_HEADER = (
     "SP_ISCHMCHT,SP_OSTEOPRS,SP_RA_OA,SP_STRKETIA,MEDREIMB_IP,BENRES_IP,"
     "PPPYMT_IP,MEDREIMB_OP,BENRES_OP,PPPYMT_OP,MEDREIMB_CAR,BENRES_CAR,PPPYMT_CAR"
 )
-_BENE_ROW = (
-    "BENE_001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,2,2,1,2,2,1000,0,0,500,0,0,200,0,0"
-)
+_BENE_ROW = "BENE_001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,2,2,1,2,2,1000,0,0,500,0,0,200,0,0"
 
 _INPATIENT_HEADER = (
     "DESYNPUF_ID,CLM_ID,SEGMENT,CLM_FROM_DT,CLM_THRU_DT,PRVDR_NUM,AT_PHYSN_NPI,"
@@ -156,6 +154,7 @@ def _write_sample_csvs(sample_dir: Path) -> None:
 # Fixture: loaded DuckDB connection with raw tables populated
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def loaded_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     """DuckDB connection with raw tables pre-populated from synthetic CSV fixtures."""
@@ -194,6 +193,7 @@ def loaded_settings(tmp_path: Path) -> Settings:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_build_star_schema_creates_tables(
     loaded_db: duckdb.DuckDBPyConnection, loaded_settings: Settings
@@ -268,9 +268,7 @@ def test_fact_inpatient_populated(
 
     build_star_schema(loaded_db, loaded_settings)
 
-    rows = loaded_db.execute(
-        "SELECT desynpuf_id, bene_key FROM fact_inpatient"
-    ).fetchall()
+    rows = loaded_db.execute("SELECT desynpuf_id, bene_key FROM fact_inpatient").fetchall()
     assert len(rows) >= 1, "fact_inpatient is empty"
     desynpuf_id, bene_key = rows[0]
     assert desynpuf_id is not None, "desynpuf_id must not be null"

@@ -13,6 +13,7 @@ def test_package_importable() -> None:
 
 # ── config ────────────────────────────────────────────────────────────────────
 
+
 def test_settings_defaults() -> None:
     from cms_platform.common.config import Settings
 
@@ -53,6 +54,7 @@ def test_settings_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 # ── logging ───────────────────────────────────────────────────────────────────
 
+
 def test_json_formatter_produces_valid_json() -> None:
     import json
     import logging as stdlib_logging
@@ -84,6 +86,7 @@ def test_configure_logging_does_not_raise() -> None:
 
 # ── db ────────────────────────────────────────────────────────────────────────
 
+
 def test_get_connection_returns_duckdb(settings: Settings) -> None:
     import duckdb
 
@@ -113,6 +116,7 @@ def test_connection_executes_query(settings: Settings) -> None:
 
 
 # ── audit ─────────────────────────────────────────────────────────────────────
+
 
 def test_log_access_returns_audit_record() -> None:
     from cms_platform.common.audit import AuditRecord, log_access

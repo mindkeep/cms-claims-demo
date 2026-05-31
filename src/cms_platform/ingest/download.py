@@ -48,6 +48,7 @@ def file_names_for_sample(sample_n: int) -> list[str]:
 # Manifest types
 # ---------------------------------------------------------------------------
 
+
 class _ManifestFile(TypedDict):
     name: str
     path: str
@@ -62,6 +63,7 @@ class _Manifest(TypedDict):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_csv(zip_bytes: bytes, dest: Path) -> None:
     """Extract the first CSV member from *zip_bytes* to *dest*."""
@@ -88,6 +90,7 @@ def _extract_csv(zip_bytes: bytes, dest: Path) -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def download_subsamples(subsamples: list[int], settings: Settings) -> list[Path]:
     """Fetch CMS DE-SynPUF CSV files for the given subsample numbers.

@@ -27,8 +27,13 @@ def test_analytics_queries_importable() -> None:
         utilization_trends,
     )
 
-    for fn in [readmission_30day, cohort_segmentation, cost_benchmarking,
-               care_gap_detection, utilization_trends]:
+    for fn in [
+        readmission_30day,
+        cohort_segmentation,
+        cost_benchmarking,
+        care_gap_detection,
+        utilization_trends,
+    ]:
         assert callable(fn)
 
 

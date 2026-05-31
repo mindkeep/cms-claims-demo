@@ -16,6 +16,7 @@ from cms_platform.common.config import Settings
 # Fixture: build a complete star schema in a tmp DuckDB and return a TestClient
 # ---------------------------------------------------------------------------
 
+
 def _build_test_db(tmp_path: Path) -> Settings:
     """Write synthetic CSVs, ingest, and build star schema. Returns Settings."""
     from cms_platform.common.db import get_connection
@@ -63,6 +64,7 @@ def client(tmp_path: Path) -> Generator[TestClient]:
 # Health
 # ---------------------------------------------------------------------------
 
+
 def test_health(client: TestClient) -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
@@ -72,6 +74,7 @@ def test_health(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # /cohorts
 # ---------------------------------------------------------------------------
+
 
 def test_cohorts_returns_list(client: TestClient) -> None:
     resp = client.get("/cohorts")
@@ -94,6 +97,7 @@ def test_cohorts_has_expected_fields(client: TestClient) -> None:
 # /beneficiary/{id}/risk
 # ---------------------------------------------------------------------------
 
+
 def test_beneficiary_risk_not_found(client: TestClient) -> None:
     resp = client.get("/beneficiary/NONEXISTENT_BENE_XYZ/risk")
     assert resp.status_code == 404
@@ -114,6 +118,7 @@ def test_beneficiary_risk_found(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # /beneficiary/{id}/care-gaps
 # ---------------------------------------------------------------------------
+
 
 def test_beneficiary_care_gaps_not_found(client: TestClient) -> None:
     resp = client.get("/beneficiary/NONEXISTENT_BENE_XYZ/care-gaps")
@@ -155,6 +160,7 @@ def test_beneficiary_risk_unmasked_with_phi_read(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 # /benchmarks/providers
 # ---------------------------------------------------------------------------
+
 
 def test_benchmarks_providers_returns_list(client: TestClient) -> None:
     resp = client.get("/benchmarks/providers")

@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 
 # Fields that are always masked in external API responses unless PHI_READ scope is granted
-PHI_FIELDS: frozenset[str] = frozenset({
-    "desynpuf_id",
-    "beneficiary_id",
-    "birth_dt",
-    "death_dt",
-})
+PHI_FIELDS: frozenset[str] = frozenset(
+    {
+        "desynpuf_id",
+        "beneficiary_id",
+        "birth_dt",
+        "death_dt",
+    }
+)
 
 
 def mask_field(field_name: str, value: str | None, *, phi_read: bool = False) -> str | None:

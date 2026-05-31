@@ -23,9 +23,7 @@ _BENE_HEADER = (
     "PPPYMT_IP,MEDREIMB_OP,BENRES_OP,PPPYMT_OP,MEDREIMB_CAR,BENRES_CAR,PPPYMT_CAR"
 )
 # sp_diabetes = '1' (TRUE) so care_gap query will find this beneficiary
-_BENE_ROW = (
-    "BENE_001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,1,2,1,2,2,1000,0,0,500,0,0,200,0,0"
-)
+_BENE_ROW = "BENE_001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,1,2,1,2,2,1000,0,0,500,0,0,200,0,0"
 
 _INPATIENT_HEADER = (
     "DESYNPUF_ID,CLM_ID,SEGMENT,CLM_FROM_DT,CLM_THRU_DT,PRVDR_NUM,AT_PHYSN_NPI,"
@@ -158,6 +156,7 @@ def _write_sample_csvs(sample_dir: Path) -> None:
 # Fixture: fully loaded star schema connection
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def star_conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     """DuckDB connection with raw tables loaded and star schema built."""
@@ -183,6 +182,7 @@ def star_conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_readmission_30day_returns_dataframe(
     star_conn: duckdb.DuckDBPyConnection,

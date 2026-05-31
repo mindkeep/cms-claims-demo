@@ -12,9 +12,20 @@ from cms_platform.common.config import Settings
 
 # Feature columns extracted from dim_beneficiary for risk stratification
 RISK_FEATURES: list[str] = [
-    "sp_alzheimer", "sp_chf", "sp_chrnkidn", "sp_cncr", "sp_copd",
-    "sp_depressn", "sp_diabetes", "sp_ischmcht", "sp_osteoprs", "sp_ra_oa",
-    "sp_strketia", "medreimb_ip", "medreimb_op", "medreimb_car",
+    "sp_alzheimer",
+    "sp_chf",
+    "sp_chrnkidn",
+    "sp_cncr",
+    "sp_copd",
+    "sp_depressn",
+    "sp_diabetes",
+    "sp_ischmcht",
+    "sp_osteoprs",
+    "sp_ra_oa",
+    "sp_strketia",
+    "medreimb_ip",
+    "medreimb_op",
+    "medreimb_car",
 ]
 
 
@@ -42,10 +53,12 @@ def train_risk_model(
     X = features.select(RISK_FEATURES).fill_null(0).to_numpy()
     y = target.to_numpy()
 
-    pipe = Pipeline([
-        ("scaler", StandardScaler()),
-        ("clf", LogisticRegression(max_iter=200, random_state=42)),
-    ])
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(max_iter=200, random_state=42)),
+        ]
+    )
     pipe.fit(X, y)
 
     return RiskModel(pipeline=pipe, feature_cols=RISK_FEATURES, training_size=len(y))

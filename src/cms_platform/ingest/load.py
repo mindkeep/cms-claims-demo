@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 # Allowlisted table names — prevents SQL injection via the table parameter
 # ---------------------------------------------------------------------------
 
-_VALID_TABLES: frozenset[str] = frozenset({
-    "raw_beneficiary", "raw_inpatient", "raw_outpatient", "raw_carrier", "raw_pde"
-})
+_VALID_TABLES: frozenset[str] = frozenset(
+    {"raw_beneficiary", "raw_inpatient", "raw_outpatient", "raw_carrier", "raw_pde"}
+)
 
 # ---------------------------------------------------------------------------
 # Explicit column lists (no type inference — VARCHAR throughout)
@@ -142,6 +142,7 @@ _PDE_COLS: list[str] = [
 # DDL helpers
 # ---------------------------------------------------------------------------
 
+
 def _col_ddl(cols: list[str], extras: list[str]) -> str:
     """Build a comma-separated list of 'col VARCHAR' definitions."""
     all_cols = cols + extras
@@ -180,6 +181,7 @@ def _ensure_raw_tables(conn: duckdb.DuckDBPyConnection) -> None:
 # ---------------------------------------------------------------------------
 # CSV loading helpers
 # ---------------------------------------------------------------------------
+
 
 def _claim_year_from_filename(csv_name: str) -> str:
     """Extract the 4-digit claim year (2008/2009/2010) from a CSV filename."""
@@ -246,6 +248,7 @@ def _load_csv(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def load_subsamples(subsamples: list[int], settings: Settings) -> None:
     """Load CMS CSV files for *subsamples* into DuckDB raw tables.

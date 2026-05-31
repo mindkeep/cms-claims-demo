@@ -16,6 +16,7 @@ from cms_platform.common.config import Settings
 # Helpers shared between download and load tests
 # ---------------------------------------------------------------------------
 
+
 def _make_zip_bytes(csv_name: str, csv_content: str) -> bytes:
     """Build a real in-memory zip containing one CSV member."""
     buf = io.BytesIO()
@@ -50,6 +51,7 @@ def _patch_httpx(settings: Settings, subsamples: list[int]) -> list[Path]:
 # download.py — file_names_for_sample
 # ---------------------------------------------------------------------------
 
+
 def test_file_names_for_sample_1() -> None:
     from cms_platform.ingest.download import file_names_for_sample
 
@@ -75,6 +77,7 @@ def test_file_names_for_sample_20() -> None:
 # ---------------------------------------------------------------------------
 # download.py — download_subsamples
 # ---------------------------------------------------------------------------
+
 
 def test_download_skips_existing_files(settings: Settings) -> None:
     """Pre-create all 8 CSVs; httpx.Client.get must never be called."""
@@ -133,9 +136,7 @@ _BENE_HEADER = (
     "SP_ISCHMCHT,SP_OSTEOPRS,SP_RA_OA,SP_STRKETIA,MEDREIMB_IP,BENRES_IP,"
     "PPPYMT_IP,MEDREIMB_OP,BENRES_OP,PPPYMT_OP,MEDREIMB_CAR,BENRES_CAR,PPPYMT_CAR"
 )
-_BENE_ROW = (
-    "B001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,2,2,1,2,2,1000,0,0,500,0,0,200,0,0"
-)
+_BENE_ROW = "B001,19300101,,,1,2,N,10,12,12,0,12,2,1,1,2,2,1,2,2,1,2,2,1000,0,0,500,0,0,200,0,0"
 
 _INPATIENT_HEADER = (
     "DESYNPUF_ID,CLM_ID,SEGMENT,CLM_FROM_DT,CLM_THRU_DT,PRVDR_NUM,AT_PHYSN_NPI,"
@@ -272,6 +273,7 @@ def _write_sample_files(raw_dir: Path, sample_n: int) -> None:
 # load.py tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def loaded_settings(settings: Settings) -> Settings:
     """Settings with synthetic CSVs pre-written for sample 1."""
@@ -340,8 +342,10 @@ def test_load_source_file_column(loaded_settings: Settings) -> None:
 # download.py — file_names_for_sample range validation
 # ---------------------------------------------------------------------------
 
+
 def test_file_names_rejects_invalid_sample() -> None:
     from cms_platform.ingest.download import file_names_for_sample
+
     with pytest.raises(ValueError, match="1–20"):
         file_names_for_sample(0)
     with pytest.raises(ValueError, match="1–20"):
