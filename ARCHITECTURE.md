@@ -264,6 +264,23 @@ Source of truth is the raw CSVs in `data/raw/`. Recovery:
 
 ---
 
+## Implementation-Level Design Decisions
+
+Decisions made deliberately at the code level — not V0/V2 infrastructure
+choices, but specific implementation trade-offs within V0 itself. These are
+"this is the right call for the demo" decisions, not oversights.
+
+| Decision | What we did | Why | What changes at V2 |
+|----------|-------------|-----|--------------------|
+| **Per-request DB connection** | `deps.py` opens and closes a DuckDB connection per HTTP request | DuckDB is embedded; a connection is cheap and the V0 API is single-node, single-writer. A connection pool would add complexity with no throughput benefit at demo scale. | Replace with `asyncpg` connection pool when moving to Postgres. The swap point is `common/db.py::get_connection()`. |
+| **`phi_read` query param** | `?phi_read=true` bypasses field masking | No JWT infrastructure in V0; a query param is sufficient to demonstrate the bypass surface and the masking logic. Acknowledged insecure — see `TODO(future-auth)` in `patient.py`. | Replace with a JWT `PHI_READ` scope claim validated in a FastAPI dependency. |
+| **`ignore_errors=true` in CSV load** | DuckDB `read_csv` silently skips malformed rows | Synthea CSVs are clean in practice. Failing the entire ingest on a single bad row is the wrong failure mode for a batch loader; silent loss is visible via row-count logging. | Add a dead-letter table (`raw_rejected`) to capture and count rejected rows explicitly. |
+| **LogisticRegression over LightGBM** | Sklearn `LogisticRegression` in `scoring/risk_model.py` | Logistic regression is deterministic, interpretable, and correct at 1,000-patient scale. LightGBM would not improve signal on synthetic data at this volume — adding it now optimises the wrong thing. | Swap to LightGBM when data volume and feature engineering justify the complexity. The `RiskModel` dataclass and `train_risk_model` / `predict_risk` interface are the swap points. |
+| **Rank-based labels, no train/test split** | Top-25% by cost → label=1; entire dataset is both train and test | With ~1,000 synthetic patients a held-out test set would be too small to be statistically meaningful, and the goal is demonstrating the pipeline, not maximising AUC. See the synthetic-data caveat in `risk_model.py`. | Add stratified train/test split and cross-validation when real data with meaningful volume is available. |
+| **`ROW_NUMBER()` for surrogate keys** | `transforms.py` assigns `MAX(key) + ROW_NUMBER()` for all dim/fact inserts | DuckDB is single-writer at V0 — there are no concurrent inserts, so sequence generation via `ROW_NUMBER()` is safe and avoids a sequence object. | Replace with a proper sequence (`CREATE SEQUENCE`) or identity column when moving to Postgres with concurrent writers. |
+
+---
+
 ## V2 Cost Model
 
 Concrete sizing for a 20-subsample deployment (~2.3M beneficiaries, ~500M claim records).
