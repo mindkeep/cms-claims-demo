@@ -6,6 +6,7 @@ fact_encounter, fact_condition, fact_medication. All functions are idempotent.
 V2 swap point: at V2, each fact table will be hash-partitioned by
 (year, patient_key % N) so intra-shard joins never cross node boundaries.
 """
+
 from __future__ import annotations
 
 import logging

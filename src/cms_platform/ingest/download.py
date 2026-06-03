@@ -8,6 +8,7 @@ TODO(future-source): support running Synthea locally for custom patient counts:
     java -jar synthea-with-dependencies.jar -p <N> --exporter.csv.export true
 TODO(future-source): support Blue Button 2.0 FHIR API for real Medicare data.
 """
+
 from __future__ import annotations
 
 import json

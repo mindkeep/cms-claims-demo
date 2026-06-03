@@ -33,7 +33,10 @@ def test_readmission_30day_returns_dataframe(analytics_conn: duckdb.DuckDBPyConn
     df = readmission_30day(analytics_conn)
     assert isinstance(df, pl.DataFrame)
     assert set(df.columns) >= {
-        "encounter_year", "total_admissions", "readmissions", "readmission_rate_pct"
+        "encounter_year",
+        "total_admissions",
+        "readmissions",
+        "readmission_rate_pct",
     }
 
 

@@ -9,6 +9,7 @@ the pipeline architecture, not clinical validity.
 TODO(future-model): swap LogisticRegression for a gradient-boosted model
     (LightGBM) once the feature set and data volume justify the complexity.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -118,10 +119,12 @@ def train_risk_model(
     """
     X = features.fill_null(0).to_numpy()
     y = target.to_numpy()
-    pipeline = Pipeline([
-        ("scaler", StandardScaler()),
-        ("clf", LogisticRegression(max_iter=1000, random_state=42)),
-    ])
+    pipeline = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(max_iter=1000, random_state=42)),
+        ]
+    )
     pipeline.fit(X, y)
     return RiskModel(pipeline=pipeline, feature_cols=list(features.columns), training_size=len(X))
 

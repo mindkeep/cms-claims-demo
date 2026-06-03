@@ -6,6 +6,7 @@ DuckDB connection, and returns a Polars DataFrame.
 TODO(future-perf): cache results with a TTL when the underlying data is static
     (e.g., historical synthea data that won't change between API calls).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -31,9 +32,7 @@ def _to_polars(result: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     def _coerce(v: Any) -> Any:
         return float(v) if isinstance(v, Decimal) else v
 
-    return pl.DataFrame(
-        {col: [_coerce(row[i]) for row in rows] for i, col in enumerate(cols)}
-    )
+    return pl.DataFrame({col: [_coerce(row[i]) for row in rows] for i, col in enumerate(cols)})
 
 
 def _run(conn: duckdb.DuckDBPyConnection, sql_file: str) -> pl.DataFrame:

@@ -6,6 +6,7 @@ Type casting happens in the schema transform layer (schema/transforms.py).
 TODO(future-source): replace _load_csv with a FHIR bundle parser to ingest
     real Blue Button 2.0 data — the raw table contract stays identical.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,42 +19,100 @@ logger = logging.getLogger(__name__)
 # Explicit column lists match Synthea CSV headers exactly (case-sensitive).
 # Do not add columns that are not in the source files.
 _PATIENT_COLS: list[str] = [
-    "ID", "BIRTHDATE", "DEATHDATE", "SSN", "DRIVERS", "PASSPORT",
-    "PREFIX", "FIRST", "LAST", "SUFFIX", "MAIDEN", "MARITAL",
-    "RACE", "ETHNICITY", "GENDER", "BIRTHPLACE", "ADDRESS", "CITY",
-    "STATE", "COUNTY", "FIPS", "ZIP", "LAT", "LON",
-    "HEALTHCARE_EXPENSES", "HEALTHCARE_COVERAGE", "INCOME",
+    "ID",
+    "BIRTHDATE",
+    "DEATHDATE",
+    "SSN",
+    "DRIVERS",
+    "PASSPORT",
+    "PREFIX",
+    "FIRST",
+    "LAST",
+    "SUFFIX",
+    "MAIDEN",
+    "MARITAL",
+    "RACE",
+    "ETHNICITY",
+    "GENDER",
+    "BIRTHPLACE",
+    "ADDRESS",
+    "CITY",
+    "STATE",
+    "COUNTY",
+    "FIPS",
+    "ZIP",
+    "LAT",
+    "LON",
+    "HEALTHCARE_EXPENSES",
+    "HEALTHCARE_COVERAGE",
+    "INCOME",
 ]
 
 _ENCOUNTER_COLS: list[str] = [
-    "Id", "START", "STOP", "PATIENT", "ORGANIZATION", "PROVIDER",
-    "PAYER", "ENCOUNTERCLASS", "CODE", "DESCRIPTION",
-    "BASE_ENCOUNTER_COST", "TOTAL_CLAIM_COST", "PAYER_COVERAGE",
-    "REASONCODE", "REASONDESCRIPTION",
+    "Id",
+    "START",
+    "STOP",
+    "PATIENT",
+    "ORGANIZATION",
+    "PROVIDER",
+    "PAYER",
+    "ENCOUNTERCLASS",
+    "CODE",
+    "DESCRIPTION",
+    "BASE_ENCOUNTER_COST",
+    "TOTAL_CLAIM_COST",
+    "PAYER_COVERAGE",
+    "REASONCODE",
+    "REASONDESCRIPTION",
 ]
 
 _CONDITION_COLS: list[str] = [
-    "START", "STOP", "PATIENT", "ENCOUNTER", "CODE", "DESCRIPTION",
+    "START",
+    "STOP",
+    "PATIENT",
+    "ENCOUNTER",
+    "CODE",
+    "DESCRIPTION",
 ]
 
 _MEDICATION_COLS: list[str] = [
-    "START", "STOP", "PATIENT", "PAYER", "ENCOUNTER", "CODE",
-    "DESCRIPTION", "BASE_COST", "PAYER_COVERAGE", "DISPENSES",
-    "TOTALCOST", "REASONCODE", "REASONDESCRIPTION",
+    "START",
+    "STOP",
+    "PATIENT",
+    "PAYER",
+    "ENCOUNTER",
+    "CODE",
+    "DESCRIPTION",
+    "BASE_COST",
+    "PAYER_COVERAGE",
+    "DISPENSES",
+    "TOTALCOST",
+    "REASONCODE",
+    "REASONDESCRIPTION",
 ]
 
 _PROVIDER_COLS: list[str] = [
-    "Id", "ORGANIZATION", "NAME", "GENDER", "SPECIALITY",
-    "ADDRESS", "CITY", "STATE", "ZIP", "LAT", "LON",
-    "ENCOUNTERS", "PROCEDURES",
+    "Id",
+    "ORGANIZATION",
+    "NAME",
+    "GENDER",
+    "SPECIALITY",
+    "ADDRESS",
+    "CITY",
+    "STATE",
+    "ZIP",
+    "LAT",
+    "LON",
+    "ENCOUNTERS",
+    "PROCEDURES",
 ]
 
 _TABLES: dict[str, tuple[str, list[str]]] = {
-    "raw_patients":    ("patients.csv",    _PATIENT_COLS),
-    "raw_encounters":  ("encounters.csv",  _ENCOUNTER_COLS),
-    "raw_conditions":  ("conditions.csv",  _CONDITION_COLS),
+    "raw_patients": ("patients.csv", _PATIENT_COLS),
+    "raw_encounters": ("encounters.csv", _ENCOUNTER_COLS),
+    "raw_conditions": ("conditions.csv", _CONDITION_COLS),
     "raw_medications": ("medications.csv", _MEDICATION_COLS),
-    "raw_providers":   ("providers.csv",   _PROVIDER_COLS),
+    "raw_providers": ("providers.csv", _PROVIDER_COLS),
 }
 
 

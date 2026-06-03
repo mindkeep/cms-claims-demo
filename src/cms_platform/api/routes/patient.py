@@ -4,6 +4,7 @@ Every route calls audit.log_access() before reading any patient data.
 Patient IDs are masked in all responses unless phi_read=True is passed.
 TODO(future-auth): replace phi_read query param with a JWT PHI_READ scope check.
 """
+
 from __future__ import annotations
 
 import duckdb
@@ -75,8 +76,12 @@ def _get_patient_features(
 
     if row is None:
         return None
-    return pl.DataFrame({col: [float(v) if v is not None else 0.0]
-                         for col, v in zip(RISK_FEATURES, row, strict=False)})
+    return pl.DataFrame(
+        {
+            col: [float(v) if v is not None else 0.0]
+            for col, v in zip(RISK_FEATURES, row, strict=False)
+        }
+    )
 
 
 def _train_model(conn: duckdb.DuckDBPyConnection, settings: Settings) -> RiskModel:
@@ -130,14 +135,13 @@ def get_patient_care_gaps(
     settings: Settings = Depends(get_settings_dep),  # noqa: B008
 ) -> CareGapResponse:
     log_access(patient_id, "care_gaps_read", "api")
-    exists = conn.execute(
-        "SELECT 1 FROM dim_patient WHERE patient_id = ?", [patient_id]
-    ).fetchone()
+    exists = conn.execute("SELECT 1 FROM dim_patient WHERE patient_id = ?", [patient_id]).fetchone()
     if not exists:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     # Identify active conditions with no recent encounter as care gaps
-    gaps_rows = conn.execute("""
+    gaps_rows = conn.execute(
+        """
         SELECT fc.description
         FROM fact_condition fc
         JOIN dim_patient dp ON dp.patient_key = fc.patient_key
@@ -149,7 +153,9 @@ def get_patient_care_gaps(
               WHERE fe.patient_key = dp.patient_key
                 AND CURRENT_DATE - dd.full_date <= 365
           )
-    """, [patient_id]).fetchall()
+    """,
+        [patient_id],
+    ).fetchall()
 
     gaps = [r[0] for r in gaps_rows if r[0]]
     explanation = explain_care_gaps(patient_id, gaps, settings)

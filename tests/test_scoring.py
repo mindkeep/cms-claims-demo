@@ -48,6 +48,7 @@ def test_train_risk_model_returns_model(
     df = _build_training_features(populated_conn)
     # Need at least 2 patients for both label classes; seed extra rows if needed
     import random
+
     random.seed(42)
     n = max(20, len(df))
     rows = {col: [random.random() for _ in range(n)] for col in RISK_FEATURES}
@@ -62,6 +63,7 @@ def test_predict_risk_returns_series(
     populated_conn: duckdb.DuckDBPyConnection, settings: Settings
 ) -> None:
     import random
+
     random.seed(0)
     n = 20
     rows = {col: [random.random() for _ in range(n)] for col in RISK_FEATURES}
@@ -76,6 +78,7 @@ def test_predict_risk_returns_series(
 
 def test_predict_risk_handles_null_features(settings: Settings) -> None:
     import random
+
     random.seed(1)
     n = 20
     rows: dict[str, list[object]] = {

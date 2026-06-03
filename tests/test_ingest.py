@@ -14,6 +14,7 @@ from cms_platform.ingest.load import (
 # Helpers — write minimal Synthea-format CSV fixtures
 # ---------------------------------------------------------------------------
 
+
 def _write_patients(path: Path) -> None:
     path.write_text(
         "ID,BIRTHDATE,DEATHDATE,SSN,DRIVERS,PASSPORT,PREFIX,FIRST,LAST,SUFFIX,"
@@ -81,12 +82,18 @@ def _seed_csvs(tmp_path: Path) -> Path:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 def test_ensure_raw_tables_creates_all_tables(tmp_path: Path) -> None:
     conn = duckdb.connect()
     _ensure_raw_tables(conn)
     tables = {r[0] for r in conn.execute("SHOW TABLES").fetchall()}
-    assert {"raw_patients", "raw_encounters", "raw_conditions",
-            "raw_medications", "raw_providers"} <= tables
+    assert {
+        "raw_patients",
+        "raw_encounters",
+        "raw_conditions",
+        "raw_medications",
+        "raw_providers",
+    } <= tables
 
 
 def test_load_synthea_data_inserts_rows(tmp_path: Path, settings: Settings) -> None:
